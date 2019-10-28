@@ -122,13 +122,15 @@ class CBORDecoder(object):
             self._shareables[self._share_index] = value
         return value
 
-    def read(self, amount):
+    def read(self, amount, allow_empty=False):
         """
         Read bytes from the data stream.
 
         :param int amount: the number of bytes to read
         """
         data = self._fp_read(amount)
+        if amount == 1 and len(data) == 0 and allow_empty:
+            return b'\xff'
         if len(data) < amount:
             raise CBORDecodeError(
                 'premature end of stream (expected to read {} bytes, got {} '
@@ -136,7 +138,7 @@ class CBORDecoder(object):
 
         return data
 
-    def _decode(self, immutable=False, unshared=False):
+    def _decode(self, immutable=False, unshared=False, allow_empty=False):
         if immutable:
             old_immutable = self._immutable
             self._immutable = True
@@ -144,7 +146,7 @@ class CBORDecoder(object):
             old_index = self._share_index
             self._share_index = None
         try:
-            return self._decode_with_lead_byte(self.read(1))
+            return self._decode_with_lead_byte(self.read(1, allow_empty))
         finally:
             if immutable:
                 self._immutable = old_immutable
@@ -264,7 +266,7 @@ class CBORDecoder(object):
             result = self.read(length).decode('utf-8', self._str_errors)
         return self.set_shareable(result)
 
-    def decode_array(self, subtype):
+    def decode_array(self, subtype, allow_empty=False):
         # Major tag 4
         length = self._decode_length(subtype, allow_indefinite=True)
         if length is None:
@@ -273,7 +275,7 @@ class CBORDecoder(object):
             if not self._immutable:
                 self.set_shareable(items)
             while True:
-                value = self._decode()
+                value = self._decode(allow_empty=allow_empty)
                 if value is break_marker:
                     break
                 else:
@@ -581,14 +583,8 @@ def load(fp, sequence=False, **kwargs):
         the deserialized object
     """
     decObj = CBORDecoder(fp, **kwargs)
-    if not sequence:
+    if sequence:
+        return decObj.decode_array(subtype=31, allow_empty=True)
+    else:
         return decObj.decode()
 
-    result = []
-    initial_byte = fp.read(1)
-    while initial_byte:
-        obj = decObj._decode_with_lead_byte(initial_byte)
-        result.append(obj)
-        initial_byte = fp.read(1)
-
-    return result
