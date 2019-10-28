@@ -144,16 +144,19 @@ class CBORDecoder(object):
             old_index = self._share_index
             self._share_index = None
         try:
-            initial_byte = byte_as_integer(self.read(1))
-            major_type = initial_byte >> 5
-            subtype = initial_byte & 31
-            decoder = major_decoders[major_type]
-            return decoder(self, subtype)
+            return self._decode_with_lead_byte(self.read(1))
         finally:
             if immutable:
                 self._immutable = old_immutable
             if unshared:
                 self._share_index = old_index
+
+    def _decode_with_lead_byte(self, initial_byte):
+        initial_byte = byte_as_integer(initial_byte)
+        major_type = initial_byte >> 5
+        subtype = initial_byte & 31
+        decoder = major_decoders[major_type]
+        return decoder(self, subtype)
 
     def decode(self):
         """
@@ -543,30 +546,49 @@ semantic_decoders = {
 }
 
 
-def loads(s, **kwargs):
+def loads(s, sequence=False, **kwargs):
     """
     Deserialize an object from a bytestring.
 
     :param bytes s:
         the bytestring to deserialize
+    :param bool sequence:
+        set to ``False`` to indicate it is not a CBOR Sequence
+        if set to ``True``, loads will decode multiple CBOR Objects and
+        return a list of decoded objects
     :param kwargs:
         keyword arguments passed to :class:`CBORDecoder`
     :return:
         the deserialized object
     """
     with BytesIO(s) as fp:
-        return CBORDecoder(fp, **kwargs).decode()
+        return load(fp, sequence, **kwargs)
 
 
-def load(fp, **kwargs):
+def load(fp, sequence=False, **kwargs):
     """
     Deserialize an object from an open file.
 
     :param fp:
         the input file (any file-like object)
+    :param bool sequence:
+        set to ``False`` to indicate it is not a CBOR Sequence
+        if set to ``True``, loads will decode multiple CBOR Objects and
+        return a list of decoded objects
     :param kwargs:
         keyword arguments passed to :class:`CBORDecoder`
     :return:
         the deserialized object
     """
-    return CBORDecoder(fp, **kwargs).decode()
+    decObj = CBORDecoder(fp, **kwargs)
+    if not sequence:
+        return decObj.decode()
+
+    result = []
+    initial_byte = fp.read(1)
+    while initial_byte:
+        obj = decObj._decode_with_lead_byte(initial_byte)
+        result.append(obj)
+        initial_byte = fp.read(1)
+
+    return result

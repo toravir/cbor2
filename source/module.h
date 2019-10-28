@@ -1,7 +1,7 @@
 #include <Python.h>
 #if PY_MAJOR_VERSION < 3
 #error "_cbor2 doesn't support the Python 2.x API"
-#elif PY_MAJOR_VERSION == 3 && PY_MAJOR_VERSION < 3
+#elif PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 3
 #error "_cbor2 requires Python 3.3 or newer"
 #endif
 
@@ -73,6 +73,7 @@ extern PyObject *_CBOR2_str_utc;
 extern PyObject *_CBOR2_str_utc_suffix;
 extern PyObject *_CBOR2_str_UUID;
 extern PyObject *_CBOR2_str_write;
+extern PyObject *_CBOR2_str_sequence;
 
 // Exception classes
 extern PyObject *_CBOR2_CBORError;
